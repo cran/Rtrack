@@ -6,7 +6,7 @@
 #' supported, but it might not be clear which format code corresponds to your data. This
 #' function can be run on a typical file to try to guess your file format. If the format
 #' is not recognised, please visit the help page at
-#' \url{http://rupertoverall.net/Rtrack/help.html} where it is also possible to request
+#' \url{https://rupertoverall.net/Rtrack/help.html} where it is also possible to request
 #' support for new formats.
 #'
 #' @param filename A raw data file containing path coordinates. If this is NULL or
@@ -18,6 +18,9 @@
 #'   \code{\link{read_experiment}}.
 #'
 #'   If the track format cannot be determined, \code{NA} is returned.
+#'
+#'   When run without a \code{filename} parameter, a character vector containing all
+#'   supported format codes is invisibly returned.
 #'
 #' @seealso \code{\link{read_path}}, or \code{\link{read_experiment}} to read the track
 #'   files.
@@ -35,19 +38,22 @@ identify_track_format = function(filename = NULL) {
 	track.format = NA
 	encoding = "UTF-8" # Default = UTF-8
 	if(length(filename) == 0){
-		message(paste(c("Supported formats are:",
-		"   raw.csv",
-		"   raw.csv2",
-		"   raw.tab",
-		"   raw.nh.csv",
-		"   raw.nh.csv2",
-		"   raw.nh.tab",
-		"   ethovision.xt.excel",
-		"   ethovision.xt.csv",
-		"   ethovision.xt.csv2",
-		"   ethovision.3.csv",
-		"   actimetrics.watermaze.csv",
-		"   dsnt.wmdat"), collapse = "\n"))
+		supported.formats = c(
+		"raw.csv",
+		"raw.csv2",
+		"raw.tab",
+		"raw.nh.csv",
+		"raw.nh.csv2",
+		"raw.nh.tab",
+		"ethovision.xt.excel",
+		"ethovision.xt.csv",
+		"ethovision.xt.csv2",
+		"ethovision.3.csv",
+		"actimetrics.watermaze.csv",
+		"topscan.txt",
+		"dsnt.wmdat")
+		message(paste(c("Supported formats are:", paste0("   ", supported.formats)), collapse = "\n"))
+		invisible(supported.formats)
 	}else{
 		# Don't rely on the file extension - it might be wrong.
 		# Test for each format agnostically
@@ -67,8 +73,6 @@ identify_track_format = function(filename = NULL) {
 			}
 		}else{ # Not Excel, so text text-based formats
 			# Check for UTF-8 encoding
-			
-	
 			if(tryCatch({suppressMessages(utils::read.table(filename, nrows = testlines, sep = "\n", fill = TRUE, header = FALSE, stringsAsFactors = FALSE, fileEncoding = "UTF-8")); TRUE}, warning = function(e){FALSE})){
 				encoding = "UTF-8"			
 			}else if(tryCatch({suppressMessages(utils::read.table(filename, nrows = testlines, sep = "\n", fill = TRUE, header = FALSE, stringsAsFactors = FALSE, fileEncoding = "UTF-8-BOM")); TRUE}, warning = function(e){FALSE})){
@@ -93,18 +97,18 @@ identify_track_format = function(filename = NULL) {
 			# Try reading the standard tabular types (from least to most common non-separator characters)
 			# Allow for up to 'headerlines' header lines (there is no way to predict this beforehand)
 			tsv.cols = table(sapply(raw[headerlines:testlines], function(s) length(which(gregexpr("\t", s)[[1]] > 0)) + 1 )) 
-			csv2.cols = table(sapply(raw[headerlines:testlines], function(s) length(which(gregexpr(";", s)[[1]] > 0)) + 1 ))
-			csv.cols = table(sapply(raw[headerlines:testlines], function(s) length(which(gregexpr(",", s)[[1]] > 0)) + 1 ))
+			csv2.cols = table(sapply(raw[headerlines:testlines], function(s) length(which(gregexpr("\\;", s)[[1]] > 0)) + 1 ))
+			csv.cols = table(sapply(raw[headerlines:testlines], function(s) length(which(gregexpr("\\,", s)[[1]] > 0)) + 1 ))
 			if(length(tsv.cols) == 1 & as.numeric(names(tsv.cols)) > 2){ # Minimum 3 columns required for t, x, y
 				# Has tabular data that is tab-separated (with or without headers)
 				# Is this a headerless table of numeric data?
 				raw = utils::read.delim(filename, header = F, stringsAsFactors = FALSE, fill = T, fileEncoding = encoding)
-				numtest.all = all(apply(raw[, 1:3], 1, function(row) all(grepl("[0-9\\-\\.\\NA\\ ]+", row) | nchar(row) == 0)))
+				numtest.all = all(apply(raw[, 1:3], 1, function(row) all(grepl("[0-9\\-\\.\\NA\\ ]+", row) | nchar(row) == 0 | is.na(row)) ))
 				if(ncol(raw) >= 3 & numtest.all){
 					track.format = "raw.nh.tab"
 				}else{
 					raw = utils::read.delim(filename, header = T, stringsAsFactors = FALSE, fill = T, fileEncoding = encoding)
-					numtest.all = all(apply(raw[, 1:3], 1, function(row) all(grepl("[0-9\\-\\.\\NA\\ ]+", row) | nchar(row) == 0)))
+					numtest.all = all(apply(raw[, 1:3], 1, function(row) all(grepl("[0-9\\-\\.\\NA\\ ]+", row) | nchar(row) == 0 | is.na(row)) ))
 					if(ncol(raw) >= 3 & numtest.all){
 						track.format = "raw.tab"
 					}
@@ -118,13 +122,13 @@ identify_track_format = function(filename = NULL) {
 				}else{
 					# Is this a headerless table of numeric data?
 					raw = utils::read.csv2(filename, header = F, row.names = NULL, stringsAsFactors = FALSE, fileEncoding = encoding)
-					numtest.all = all(apply(raw[, 1:3], 1, function(row) all(grepl("[0-9\\-\\.\\NA\\ ]+", row) | nchar(row) == 0)))
+					numtest.all = all(apply(raw[, 1:3], 1, function(row) all(grepl("[0-9\\-\\.\\NA\\ ]+", row) | nchar(row) == 0 | is.na(row)) ))
 					if(numtest.all){
 						track.format = "raw.nh.csv"
 					}else{
 						raw = utils::read.csv2(filename, header = T, row.names = NULL, stringsAsFactors = FALSE, fileEncoding = encoding)
-						numtest.all = all(apply(raw, 1, function(row) all(grepl("[0-9\\-\\.\\NA\\ ]+", row) | nchar(row) == 0)))
-						numtest.sans = all(apply(raw[-1, ], 1, function(row) all(grepl("[0-9\\-\\.\\NA\\ ]+", row) | nchar(row) == 0)))
+						numtest.all = all(apply(raw, 1, function(row) all(grepl("[0-9\\-\\.\\NA\\ ]+", row) | nchar(row) == 0 | is.na(row)) ))
+						numtest.sans = all(apply(raw[-1, ], 1, function(row) all(grepl("[0-9\\-\\.\\NA\\ ]+", row) | nchar(row) == 0 | is.na(row)) ))
 						if(ncol(raw) == 3 & numtest.all){
 							track.format = "raw.csv2"
 						}else if(ncol(raw) %% 3 == 0 & numtest.sans){
@@ -141,13 +145,13 @@ identify_track_format = function(filename = NULL) {
 				}else{
 					# Is this a headerless table of numeric data?
 					raw = utils::read.csv(filename, header = F, row.names = NULL, stringsAsFactors = FALSE, fileEncoding = encoding)
-					numtest.all = all(apply(raw[, 1:3], 1, function(row) all(grepl("[0-9\\-\\.\\NA\\ ]+", row) | nchar(row) == 0)))
+					numtest.all = all(apply(raw[, 1:3], 1, function(row) all(grepl("[0-9\\-\\.\\NA\\ ]+", row) | nchar(row) == 0 | is.na(row)) ))
 					if(numtest.all){
 						track.format = "raw.nh.csv"
 					}else{
 						raw = utils::read.csv(filename, header = T, row.names = NULL, stringsAsFactors = FALSE, fileEncoding = encoding)
-						numtest.all = all(apply(raw, 1, function(row) all(grepl("[0-9\\-\\.\\NA\\ ]+", row) | nchar(row) == 0)))
-						numtest.sans = all(apply(raw[-1, ], 1, function(row) all(grepl("[0-9\\-\\.\\NA\\ ]+", row) | nchar(row) == 0)))
+						numtest.all = all(apply(raw, 1, function(row) all(grepl("[0-9\\-\\.\\NA\\ ]+", row) | nchar(row) == 0 | is.na(row)) ))
+						numtest.sans = all(apply(raw[-1, ], 1, function(row) all(grepl("[0-9\\-\\.\\NA\\ ]+", row) | nchar(row) == 0 | is.na(row)) ))
 						if(ncol(raw) == 3 & numtest.all){
 							track.format = "raw.csv"
 						}else if(ncol(raw) %% 3 == 0 & numtest.sans){
@@ -156,7 +160,11 @@ identify_track_format = function(filename = NULL) {
 					}
 				}
 			}else{ # Not a csv or tsv
-				if(any(grepl(":", raw[1:4]))){
+				# Check for some known headers
+				if(any(grepl("FrameNum", raw) & grepl("CenterX", raw))){
+					# Probably Topscan
+						track.format = "topscan.txt"
+				}else if(any(grepl(":", raw[1:4]))){
 					# Probably 'dsnt.wmdat' in which case every 2nd is numeric and every 3rd is a POSIX timestamp (contains':')
 					m = matrix(grepl(":", raw[1:(testlines - testlines %% 3)]), nrow = 3)
 					if(!any(m[2, ]) & all(m[3, ])){
@@ -174,7 +182,7 @@ identify_track_format = function(filename = NULL) {
 		
 		# Give message to user
 		if(is.na(track.format)){
-			msg = paste0("\u2716", " The format of this track cannot be determined.\n Please visit http://rupertoverall.net/Rtrack/help.html for assistance.")
+			msg = paste0("\u2716", " The format of this track cannot be determined.\n Please visit https://rupertoverall.net/Rtrack/help.html for assistance.")
 			message(crayon::red(msg))
 		}else{
 			msg = paste0("\u2714", " This track seems to be in the format '", track.format, "'.")
