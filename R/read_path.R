@@ -65,10 +65,8 @@
 #' path <- read_path(track_file, arena, track.format = "ethovision.3.csv")
 #'
 #' @importFrom readxl read_excel
-#' @importFrom methods as
 #' @importFrom utils capture.output
 #' @importFrom stats median approx
-#' @importFrom Hmisc approxExtrap
 #'
 #' @export
 read_path = function(filename, arena, id = NULL, track.format = "none", track.index = NULL, interpolate = FALSE, time.bounds = c(NA, NA)) {
@@ -99,7 +97,8 @@ read_path = function(filename, arena, id = NULL, track.format = "none", track.in
 			})
 			header.lines = as.numeric(raw[grep("header", raw[, 1], ignore.case = TRUE), 2])
 			header = as.data.frame(raw[1:header.lines, 1:2])
-			coordinate.data = suppressWarnings(as.data.frame(apply(raw[(header.lines + 1):nrow(raw), ], 2, methods::as, "numeric")))
+			coordinate.data = raw[(header.lines + 1):nrow(raw), ]
+			for(i in 1:ncol(coordinate.data)) coordinate.data[, i] = suppressWarnings(methods::as(coordinate.data[, i], "numeric"))
 			# Ethovision allows export with units on a separate line as an option.
 			# The following check is to work out which row contains the correct header information
 			if(length(grep('X\\ center', raw[header.lines, ])) > 0){
@@ -125,7 +124,8 @@ read_path = function(filename, arena, id = NULL, track.format = "none", track.in
 			header = as.matrix(suppressMessages(utils::read.table(filename, nrows = 100, sep = "\n", fill = TRUE, header = FALSE, stringsAsFactors = FALSE, fileEncoding = track.encoding)))
 			header.lines = as.numeric(gsub("[^0-9]", "", strsplit(header[1], ",")[[1]][2]))
 			raw = suppressMessages(utils::read.csv(filename, header = FALSE, stringsAsFactors = FALSE, skip = header.lines, fileEncoding = track.encoding))
-			coordinate.data = suppressWarnings(as.data.frame(apply(raw[(header.lines + 1):nrow(raw), ], 2, methods::as, "numeric")))
+			coordinate.data = raw[(header.lines + 1):nrow(raw), ]
+			for(i in 1:ncol(coordinate.data)) coordinate.data[, i] = suppressWarnings(methods::as(coordinate.data[, i], "numeric"))
 			# Ethovision allows export with units on a separate line as an option.
 			# The following check is to work out which row contains the correct header information
 			if(length(grep('X\\ center', header[header.lines])) > 0){
@@ -151,7 +151,8 @@ read_path = function(filename, arena, id = NULL, track.format = "none", track.in
 			header = as.matrix(suppressMessages(utils::read.table(filename, nrows = 100, sep = "\n", fill = TRUE, header = FALSE, stringsAsFactors = FALSE, fileEncoding = track.encoding)))
 			header.lines = as.numeric(gsub("[^0-9]", "", strsplit(header[1], ";")[[1]][2]))
 			raw = suppressMessages(utils::read.csv2(filename, header = FALSE, stringsAsFactors = FALSE, skip = header.lines, fileEncoding = track.encoding))
-			coordinate.data = suppressWarnings(as.data.frame(apply(raw[(header.lines + 1):nrow(raw), ], 2, methods::as, "numeric")))
+			coordinate.data = raw[(header.lines + 1):nrow(raw), ]
+			for(i in 1:ncol(coordinate.data)) coordinate.data[, i] = suppressWarnings(methods::as(coordinate.data[, i], "numeric"))
 			# Ethovision allows export with units on a separate line as an option.
 			# The following check is to work out which row contains the correct header information
 			if(length(grep('X\\ center', header[header.lines])) > 0){
@@ -178,7 +179,14 @@ read_path = function(filename, arena, id = NULL, track.format = "none", track.in
 			header.lines = grep("Sample no\\.", raw[, 1], ignore.case = TRUE) - 1
 			coordinate.data = utils::read.csv(filename, header = T, stringsAsFactors = FALSE, skip = header.lines)
 			path$raw.t = suppressWarnings(as.numeric(coordinate.data$Time))
-			path$raw.x =suppressWarnings(as.numeric(coordinate.data$X))
+			path$raw.x = suppressWarnings(as.numeric(coordinate.data$X))
+			path$raw.y = suppressWarnings(as.numeric(coordinate.data$Y))
+		}else if(track.format == "ethovision.3.csv2"){
+			raw = utils::read.delim(filename, header = F, stringsAsFactors = FALSE, fill = T, fileEncoding = track.encoding)
+			header.lines = grep("Sample no\\.", raw[, 1], ignore.case = TRUE) - 1
+			coordinate.data = utils::read.csv2(filename, header = T, stringsAsFactors = FALSE, skip = header.lines)
+			path$raw.t = suppressWarnings(as.numeric(coordinate.data$Time))
+			path$raw.x = suppressWarnings(as.numeric(coordinate.data$X))
 			path$raw.y = suppressWarnings(as.numeric(coordinate.data$Y))
 		}else if(track.format == "actimetrics.watermaze.csv"){
 			if(is.null(track.index)){
@@ -215,6 +223,32 @@ read_path = function(filename, arena, id = NULL, track.format = "none", track.in
 			path$raw.t = suppressWarnings(as.numeric(coordinate.data$FrameNum) - min(as.numeric(coordinate.data$FrameNum))) / frame.rate
 			path$raw.x = suppressWarnings(as.numeric(coordinate.data[ , grep("CenterX", headers)]))
 			path$raw.y = suppressWarnings(as.numeric(coordinate.data[ , grep("CenterY", headers)]))
+		}else if(track.format == "anymaze.csv"){
+			coordinate.data = utils::read.delim(filename, header = F, skip = 1, sep = ",", stringsAsFactors = FALSE, fill = TRUE, fileEncoding = track.encoding)
+			path$raw.t = suppressWarnings(as.numeric(strptime(coordinate.data[ ,1], format = "%H:%M:%OS"))) - suppressWarnings(as.numeric(strptime(coordinate.data[1 ,1], format = "%H:%M:%OS")))
+			path$raw.x = suppressWarnings(as.numeric(coordinate.data[ ,2]))
+			path$raw.y = suppressWarnings(as.numeric(coordinate.data[ ,3]))
+		}else if(track.format == "anymaze.csv2"){
+			coordinate.data = utils::read.delim(filename, header = F, skip = 1, sep = ";", stringsAsFactors = FALSE, fill = TRUE, fileEncoding = track.encoding)
+			path$raw.t = suppressWarnings(as.numeric(coordinate.data[ ,1]))
+			path$raw.x = suppressWarnings(as.numeric(coordinate.data[ ,2]))
+			path$raw.y = suppressWarnings(as.numeric(coordinate.data[ ,3]))
+		}else if(track.format == "anymaze.tab"){
+			coordinate.data = utils::read.delim(filename, header = F, skip = 1, sep = "\t", stringsAsFactors = FALSE, fill = TRUE, fileEncoding = track.encoding)
+			path$raw.t = suppressWarnings(as.numeric(coordinate.data[ ,1]))
+			path$raw.x = suppressWarnings(as.numeric(coordinate.data[ ,2]))
+			path$raw.y = suppressWarnings(as.numeric(coordinate.data[ ,3]))
+		# }else if(track.format == "eztrack.csv"){
+		# 	coordinate.data = utils::read.delim(filename, header = F, skip = 1, sep = ",", stringsAsFactors = FALSE, fill = TRUE, fileEncoding = track.encoding)
+		# 	path$raw.t = suppressWarnings(as.numeric(coordinate.data[ ,1]))
+		# 	path$raw.x = suppressWarnings(as.numeric(coordinate.data[ ,2]))
+		# 	path$raw.y = suppressWarnings(as.numeric(coordinate.data[ ,3]))
+		# }else if(track.format == "timestamp.nh.csv"){
+		# 	coordinate.data = utils::read.csv(filename, header = T, stringsAsFactors = FALSE)
+		# 	keep = as.character(coordinate.data[, 1]) %in% id
+		# 	path$raw.t = suppressWarnings(as.numeric(coordinate.data[keep, 4])) - suppressWarnings(as.numeric(coordinate.data[keep, 4][1]))
+		# 	path$raw.x = suppressWarnings(as.numeric(coordinate.data[keep, 2]))
+		# 	path$raw.y = suppressWarnings(as.numeric(coordinate.data[keep, 3]))
 		}else if(track.format == "raw.csv"){
 			coordinate.data = utils::read.csv(filename, header = T, stringsAsFactors = FALSE)
 			if(!all(colnames(coordinate.data) %in% c("Time", "X", "Y")) & all(colnames(coordinate.data) %in% c("t", "x", "y"))){
@@ -237,7 +271,7 @@ read_path = function(filename, arena, id = NULL, track.format = "none", track.in
 				colnames(coordinate.data)[match(colnames(coordinate.data), c("t", "x", "y"))] = c("Time", "X", "Y")
 			}
 			path$raw.t = suppressWarnings(as.numeric(coordinate.data$Time))
-			path$raw.x =suppressWarnings(as.numeric(coordinate.data$X))
+			path$raw.x = suppressWarnings(as.numeric(coordinate.data$X))
 			path$raw.y = suppressWarnings(as.numeric(coordinate.data$Y))
 		}else if(track.format == "raw.nh.csv"){
 			coordinate.data = utils::read.csv(filename, header = F, stringsAsFactors = FALSE)
@@ -262,7 +296,7 @@ read_path = function(filename, arena, id = NULL, track.format = "none", track.in
 			missing = is.na(path$raw.t) | is.na(path$raw.x) | is.na(path$raw.y)
 			if(!all(is.na(time.bounds))){ # The user has specified bounds to the recording
 				if(is.na(time.bounds[1]) | time.bounds[1] < 0) time.bounds[1] = 0
-				if(is.na(time.bounds[2]) | time.bounds[2] > arena$correction$t) time.bounds[2] = arena$correction$t
+				if(is.na(time.bounds[2]) | time.bounds[2] > arena$correction$t) time.bounds[2] = time.bounds[1] + arena$correction$t
 				missing = missing | (path$raw.t < time.bounds[1] | path$raw.t > time.bounds[2])
 			}
 			path$t = (path$raw.t / arena$correction$t)[!missing]
@@ -289,8 +323,17 @@ read_path = function(filename, arena, id = NULL, track.format = "none", track.in
 				timestep = stats::median(diff(path$raw.t), na.rm = T) 
 				new.t = seq(0, end, timestep) / arena$correction$t
 				# 5. Replace missing and clipped points by interpolated/extrapolated values
-				path$x = Hmisc::approxExtrap(path$t, path$x, xout = new.t, method = "constant", ties = "ordered")$y
-				path$y = Hmisc::approxExtrap(path$t, path$y, xout = new.t, method = "constant", ties = "ordered")$y
+				exprox = function(x, y, xout){
+					yout = stats::approx(x, y, xout = xout, method = "constant", rule = 2, ties = "ordered")$y
+					d = xout < min(x)
+					if(any(d)) yout[d] = (y[2] - y[1])/(x[2] - x[1]) * (xout[d] - x[1]) + y[1]
+					d = xout > max(x)
+					n = length(y)
+					if(any(d)) yout[d] = (y[n] - y[n - 1])/(x[n] - x[n - 1]) * (xout[d] - x[n - 1]) + y[n - 1]
+					list(x = xout, y = yout)
+				}
+				path$x = exprox(path$t, path$x, new.t)$y
+				path$y = exprox(path$t, path$y, new.t)$y
 				path$t = new.t
 				# 6. Fix any overzealous extrapolation by bounding to the arena
 				clipped = is.na(sp::over(sp::SpatialPoints(data.frame(x = path$x, y = path$y)), arena$zones$pool))
@@ -306,7 +349,7 @@ read_path = function(filename, arena, id = NULL, track.format = "none", track.in
 			missing = is.na(path$raw.t) | is.na(path$raw.x) | is.na(path$raw.y)
 			if(!all(is.na(time.bounds))){ # The user has specified bounds to the recording
 				if(is.na(time.bounds[1]) | time.bounds[1] < 0) time.bounds[1] = 0
-				if(is.na(time.bounds[2]) | time.bounds[2] > arena$correction$t) time.bounds[2] = arena$correction$t
+				if(is.na(time.bounds[2]) | time.bounds[2] > arena$correction$t) time.bounds[2] = time.bounds[1] + arena$correction$t
 				missing = missing | (path$raw.t < time.bounds[1] | path$raw.t > time.bounds[2])
 			}
 			path$t = (path$raw.t / arena$correction$t)[!missing]
@@ -326,3 +369,5 @@ read_path = function(filename, arena, id = NULL, track.format = "none", track.in
 		class(path) = "rtrack_path"
 		return(path)
 }
+
+
